@@ -1,0 +1,259 @@
+"use client";
+
+import { useState } from "react";
+import OpenAI from "openai";
+import html2pdf from "html2pdf.js";
+
+export default function Home() {
+  const [loading, setLoading] = useState(false);
+
+  const [result, setResult] = useState<any>(null);
+
+  const handleGenerate = async (e: any) => {
+    e.preventDefault();
+
+    setLoading(true);
+
+    const formData = new FormData(e.target);
+
+    const provider = formData.get("provider");
+    const apiKey = formData.get("apiKey") as string;
+
+    const prompt = `
+Buatkan LKPD profesional berdasarkan data berikut:
+
+Mapel: ${formData.get("mapel")}
+Kelas: ${formData.get("kelas")}
+Topik: ${formData.get("topik")}
+Model Pembelajaran: ${formData.get("model")}
+
+Deskripsi Guru:
+${formData.get("deskripsi")}
+
+Output HARUS JSON valid berikut:
+
+{
+  "judul": "",
+  "tujuan": [],
+  "kegiatan": [],
+  "refleksi": []
+}
+
+Jangan gunakan markdown.
+`;
+
+    try {
+      const client = new OpenAI({
+        apiKey,
+        dangerouslyAllowBrowser: true,
+        baseURL:
+          provider === "openrouter"
+            ? "https://openrouter.ai/api/v1"
+            : undefined
+      });
+
+      const response =
+        await client.chat.completions.create({
+          model:
+            provider === "openrouter"
+              ? "deepseek/deepseek-chat"
+              : "gpt-4.1-mini",
+
+          messages: [
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+
+          temperature: 0.7
+        });
+
+      const content =
+        response.choices[0].message.content;
+
+      const parsed = JSON.parse(content || "{}");
+
+      setResult(parsed);
+    } catch (err) {
+      alert("Generate gagal");
+      console.error(err);
+    }
+
+    setLoading(false);
+  };
+
+  const downloadPDF = () => {
+    const element =
+      document.getElementById("lkpd-result");
+
+    html2pdf().from(element).save("lkpd.pdf");
+  };
+
+  return (
+    <main className="min-h-screen bg-gray-100 p-10">
+      <div className="max-w-5xl mx-auto">
+        <div className="bg-white rounded-3xl shadow-xl p-10">
+          <h1 className="text-5xl font-bold mb-2">
+            AI LKPD Generator
+          </h1>
+
+          <p className="text-gray-500 mb-10">
+            Generate LKPD otomatis dengan AI
+          </p>
+
+          <form
+            onSubmit={handleGenerate}
+            className="space-y-5"
+          >
+            <input
+              name="mapel"
+              placeholder="Mapel"
+              className="w-full border p-4 rounded-xl"
+              required
+            />
+
+            <input
+              name="kelas"
+              placeholder="Kelas"
+              className="w-full border p-4 rounded-xl"
+              required
+            />
+
+            <input
+              name="topik"
+              placeholder="Topik"
+              className="w-full border p-4 rounded-xl"
+              required
+            />
+
+            <input
+              name="model"
+              placeholder="Model Pembelajaran"
+              className="w-full border p-4 rounded-xl"
+              required
+            />
+
+            <select
+              name="provider"
+              className="w-full border p-4 rounded-xl"
+            >
+              <option value="openai">
+                OpenAI
+              </option>
+
+              <option value="openrouter">
+                OpenRouter
+              </option>
+            </select>
+
+            <input
+              type="password"
+              name="apiKey"
+              placeholder="API Key"
+              className="w-full border p-4 rounded-xl"
+              required
+            />
+
+            <textarea
+              name="deskripsi"
+              placeholder="Deskripsi LKPD..."
+              className="w-full border p-4 rounded-xl h-40"
+              required
+            />
+
+            <button
+              disabled={loading}
+              className="bg-blue-600 text-white px-6 py-4 rounded-xl w-full font-bold"
+            >
+              {loading
+                ? "Generating..."
+                : "Generate LKPD"}
+            </button>
+          </form>
+        </div>
+
+        {result && (
+          <div className="mt-10">
+            <div className="flex justify-end mb-5">
+              <button
+                onClick={downloadPDF}
+                className="bg-green-600 text-white px-5 py-3 rounded-xl"
+              >
+                Download PDF
+              </button>
+            </div>
+
+            <div
+              id="lkpd-result"
+              className="bg-white rounded-3xl shadow-xl p-10"
+            >
+              <div className="border-b pb-5 mb-5">
+                <h1 className="text-5xl font-bold text-blue-700">
+                  {result.judul}
+                </h1>
+              </div>
+
+              <section className="mb-8">
+                <h2 className="text-2xl font-bold mb-3 text-blue-600">
+                  Tujuan Pembelajaran
+                </h2>
+
+                <ul className="space-y-2">
+                  {result.tujuan?.map(
+                    (item: string, index: number) => (
+                      <li
+                        key={index}
+                        className="bg-blue-50 p-3 rounded-xl"
+                      >
+                        {item}
+                      </li>
+                    )
+                  )}
+                </ul>
+              </section>
+
+              <section className="mb-8">
+                <h2 className="text-2xl font-bold mb-3 text-purple-600">
+                  Kegiatan
+                </h2>
+
+                <ul className="space-y-2">
+                  {result.kegiatan?.map(
+                    (item: string, index: number) => (
+                      <li
+                        key={index}
+                        className="bg-purple-50 p-3 rounded-xl"
+                      >
+                        {item}
+                      </li>
+                    )
+                  )}
+                </ul>
+              </section>
+
+              <section>
+                <h2 className="text-2xl font-bold mb-3 text-green-600">
+                  Refleksi
+                </h2>
+
+                <ul className="space-y-2">
+                  {result.refleksi?.map(
+                    (item: string, index: number) => (
+                      <li
+                        key={index}
+                        className="bg-green-50 p-3 rounded-xl"
+                      >
+                        {item}
+                      </li>
+                    )
+                  )}
+                </ul>
+              </section>
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
